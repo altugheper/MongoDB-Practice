@@ -55,3 +55,127 @@ db.students.find({"city": {$in: ["İzmir","İstanbul","Ankara"]}},{"name":1,"cit
 //--------------------------------------------
 use ("school");
 db.students.find({$or: [{"department.language":"eng"},{"age":{$lte:35}}]},{"name":1,"department":1,"age":1,"_id":0})
+
+//=====================================================
+//=====================================================
+
+//--------------------------------------------
+//1) Update "Peyami Safa"s data
+//--------------------------------------------
+use ("school");
+db.students.find({"name":"Peyami Safa"})
+
+use ("school");
+db.students.findOneAndReplace({"name":"Peyami Safa"},
+                              {"name":"Peyami Safa",
+                               "age":33,
+                               "city":"Izmir",
+                               "grade":455,
+                               "department":{"name":"Science","language":"eng"},
+                               "books":[{"name":"Science","category":"lesson"},
+                               {"name":"LOTR","category":"novel"}]})
+
+
+//--------------------------------------------
+//2) update department to IT for those whose grades are less than 550
+//--------------------------------------------
+use ("school");
+db.students.findOneAndUpdate({"grade":{$lt:550}},{$set: {"department.name":"IT"}},{sort:{"grade":-1}})
+
+//--------------------------------------------
+//3) update age to  23 whose name is "Elif Safak" and return the data
+//--------------------------------------------
+use ("school");
+db.students.findOneAndUpdate({"age":23},{$set: {"name":"Elif Safak"}},{returnNewDocument:true})
+
+//--------------------------------------------
+//4) update "Kemal Tahir"s data if it exists. If not, add it and return the data
+//--------------------------------------------
+use ("school");
+db.students.findOneAndUpdate({"name":"Kemal Tahir"},
+                             {$set: {"age":36,"city":"Konya","grade":411,"department.name":"Chemistry"}},
+                             {returnNewDocument:true,upsert:true})
+
+//--------------------------------------------
+//5) update city:Istanbul to city:Megakent and return the data
+//--------------------------------------------
+use ("school");
+db.students.updateMany({"city":"İstanbul"},{$set: {"city":"Megakent"}},{returnNewDocument:true})
+
+//--------------------------------------------
+//6) Remove who have department name as Physics
+//--------------------------------------------
+use ("school");
+db.students.deleteOne({"department.name":"Physics"})
+
+//--------------------------------------------
+//7) Remove whose ages are less than 30 or more than 70
+//--------------------------------------------
+use ("school");
+db.students.deleteMany({$or: [{"age":{$lt:30}},{"age":{$gt:70}}]})
+
+//--------------------------------------------
+//8) Remove everything in "students" collection
+//--------------------------------------------
+use ("school");
+db.students.remove({});
+
+//--------------------------------------------
+//9) Get average age of each city
+//--------------------------------------------
+use ("school");
+var pipeline = [{$match:{}},
+                {$group:{"_id":"$city",average:{$avg:"$age"}}}
+
+];
+db.students.aggregate(pipeline)
+
+//--------------------------------------------
+//10) get max grade of each department
+//--------------------------------------------
+use ("school");
+var pipeline = [
+                {$match : {}},
+                {$group: {"_id":"$department.name","max_grade":{$max:"$grade"}}}
+];
+db.students.aggregate(pipeline);
+
+//--------------------------------------------
+//11) get min grade of each department whose ages are more than 40
+//--------------------------------------------
+use ("school");
+var pipeline = [
+                {$match: {"age":{$gt:40}}},
+                {$group: {"_id":"$department.name","min_grade":{$min:"$grade"}}}
+];
+db.students.aggregate(pipeline);
+
+//--------------------------------------------
+//12) get total grade of those whose name end with "k"
+//--------------------------------------------
+use ("school");
+var pipeline = [
+                {$match: {"name":{$regex:"k$"}}},
+                {$group: {"_id":"","total_grade": {$sum: "$grade"}}}
+];
+db.students.aggregate(pipeline);
+
+//--------------------------------------------
+//13) get number of people who live in Ankara
+//--------------------------------------------
+use ("school");
+var pipeline = [
+                {$match: {"city":"Ankara"}},
+                {$count: "Num of people who live in Ankara: "}
+];
+db.students.aggregate(pipeline);
+
+//--------------------------------------------
+//14) get number of people whose age is more than 30
+//--------------------------------------------
+use ("school");
+var pipeline = [
+                {$match: {"age":{$gt:30}}},
+                {$count: "Num of people who are above 30: "}
+];
+db.students.aggregate(pipeline);
