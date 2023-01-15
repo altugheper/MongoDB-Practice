@@ -179,3 +179,178 @@ var pipeline = [
                 {$count: "Num of people who are above 30: "}
 ];
 db.students.aggregate(pipeline);
+
+//=====================================================
+//=====================================================
+
+//addFields-bulkWrite-UnionWith-lookup
+
+use("school");
+db.points.insertMany([
+      {"name":"Fred","homework":[100,100,100],"midterm":[100,100,100]},
+      {"name":"Barnie","homework":[10,90,80,100],"midterm":[45,85,90]},
+      {"name":"Wilma","homework":[35,40,80,70],"midterm":[80,80,90]},
+      {"name":"Betty","homework":[55,78,80,90],"midterm":[45,70,65]}
+])
+
+//------------------------------------------------------------------------------
+// 1) Add new field for sum of homeworks and midterms
+//------------------------------------------------------------------------------
+use ("school");
+var pipeline=[{$addFields:{avg_homework:{$avg:"$homework"},
+                          avg_midterm:{$avg:"$midterm"}}}]
+db.points.aggregate(pipeline);
+
+//------------------------------------------------------------------------------
+// 2) Add new field for sum of homeworks and midterms. Show name,avg_homework,avg_midterm
+//------------------------------------------------------------------------------
+use ("school");
+var pipeline=[{$addFields:{avg_homework:{$avg:"$homework"},
+                          avg_midterm:{$avg:"$midterm"}}},
+              {$project:{ _id: 0, name: 1, avg_homework: 1, avg_midterm: 1}}]
+db.points.aggregate(pipeline);
+
+//------------------------------------------------------------------------------
+// 3) add sum of avg_homework and avg_midterm to points collection as final field, show name,avg_homework,avg_midterm,final
+//------------------------------------------------------------------------------
+use ("school");
+var pipeline=[{$addFields:{avg_homework:{$avg:"$homework"},
+                          avg_midterm:{$avg:"$midterm"}}},
+              {$addFields: {final:{$add:["$avg_homework","$avg_midterm"]}}},
+              {$project:{ _id: 0, name: 1, avg_homework: 1, avg_midterm: 1, final:1}}]
+db.points.aggregate(pipeline);
+
+//------------------------------------------------------------------------------
+// 4) Sort final value by desc and show name,avg_homework,avg_midterm,final 
+//------------------------------------------------------------------------------
+use ("school");
+var pipeline=[{$addFields:{avg_homework:{$avg:"$homework"},
+                          avg_midterm:{$avg:"$midterm"}}},
+              {$addFields: {final:{$add:[{ $multiply: ["$avg_homework", 0.5]},
+                                          {$multiply: ["$avg_midterm", 0.5]}
+                                        ]}}},
+              {$project:{ _id: 0, name: 1, avg_homework: 1, avg_midterm: 1, final:1}},
+              {$sort:{"final":1}}]
+db.points.aggregate(pipeline);
+
+
+// *****************
+// bulkWrite
+// *****************
+
+use ("school");
+db.staff.insertMany([
+ {"name":"Leonardo", "age":35, "city":"Istanbul","salary":4500, "job":"lawyer"},
+ {"name":"Raphael",  "age":55, "city":"Ankara",  "salary":9000, "job":"manager"},
+ {"name":"Donatello","age":35, "city":"Antalya", "salary":3300, "job":"doctor"},
+ {"name":"Michelangelo", "age":36, "city":"Istanbul","salary":4500, "job":"developer"},
+ {"name":"Splinter", "age":26, "city":"Izmir", "salary":2500, "job":"analyst"},
+ {"name":"April", "age":35, "city":"Istanbul", "salary":3000, "job":"instructor"}
+ ])
+
+ //---------------------------------------------------------------------------------------
+ // 5) Do everything below in one line
+ // a) Add document: {"name":"Shredder",  "age":49, "city":"Konya", "salary":3870, "job":"engineer"}
+ // b) Update Michelangelo's salary as 5000
+ // c) Delete document which job info is analyst
+ //---------------------------------------------------------------------------------------
+ use ("school");
+db.staff.bulkWrite([
+  {insertOne:{"document":{"name":"Shredder",  "age":49, "city":"Konya", "salary":3870, "job":"engineer"}}},
+  {updateOne:{"filter":{"name":"Michelangelo"},
+              "update":{$set:{"salary":5000}}}},
+  {deleteOne:{"filter":{"job":"analyst"}}}
+])
+use ("school");
+db.staff.find()
+
+ //---------------------------------------------------------------------------------------
+ // 6) Do everything below in one line
+ // a) Add document: {"name":"Ninja",  "age":37, "city":"Isparta", "salary":3000, "job":"analyst"}
+ // b) Update doctor as "DR"
+ // c) Increase salaries by 1.5 whose ages are 15
+ //---------------------------------------------------------------------------------------
+ use ("school");
+db.staff.bulkWrite([
+  {insertOne:{"document":{"name":"Ninja",  "age":37, "city":"Isparta", "salary":3000, "job":"analyst"}}},
+  {updateOne:{"filter":{"job":"doctor"},"update":{$set:{"job":"DR"}}}},
+  {updateMany:{"filter":{"age":35},"update":{$mul:{"salary":1.5}}}}
+])
+
+// *****************
+// unionWith
+// *****************
+
+use ("school");
+db.personel.insertMany([
+ {"name":"Tom", "age":33, "city":"Istanbul","salary":4300, "job":"lawyer"},
+ {"name":"Jerry",  "age":44, "city":"Ankara",  "salary":7500, "job":"instructor"},
+ {"name":"Sylvester","age":34, "city":"Antalya", "salary":6300, "job":"DR"},
+ {"name":"Tweety", "age":24, "city":"Istanbul","salary":5400, "job":"developer"},
+ {"name":"BugsBunny", "age":32, "city":"Izmir", "salary":2800, "job":"nurse"}
+ ])
+
+//------------------------------------------------------------------------------
+// 7) Sort all employees' by name and job 
+//------------------------------------------------------------------------------
+use ("school")
+db.personel.aggregate(
+  {$unionWith:{coll:"staff"}},
+  {$project:{_id:0, name:1,job:1}}
+)
+
+//------------------------------------------------------------------------------
+// 8) Sort personal and staff by city and show city and name
+//------------------------------------------------------------------------------
+use ("school")
+db.personel.aggregate(
+  {$unionWith:{coll:"staff"}},
+  {$sort:{"city":1}},
+  {$project:{_id:0, name:1,city:1}}
+)
+
+//------------------------------------------------------------------------------
+// 9) Get average of each city for personal and staff
+//------------------------------------------------------------------------------
+use ("school")
+db.staff.aggregate(
+  {$unionWith:{coll:"personel"}},
+  {$group:{_id:"$city", avg_age:{$avg:"$age"}}}
+)
+
+// *****************
+// lookup
+// *****************
+
+//------------------------------------------------------------------------------
+// 10) Show staff whose jobs are the same. Show name,job,ortak_meslekler
+//------------------------------------------------------------------------------
+use ("school");
+db.personel.aggregate({
+$lookup: {
+  from: "staff",
+  localField: "job",
+  foreignField: "job",
+  as: "ortak_meslekler"
+}},
+{$project:{_id:0, name:1,job:1,"ortak_meslekler.name":1}})
+
+use ("school");
+db.personel.find()
+
+//------------------------------------------------------------------------------
+// 11) show staf who have the same job and their average age. Show name, job, avg_name
+//------------------------------------------------------------------------------
+use ("school")
+db.personel.aggregate({
+$lookup: {
+  from: "staff",
+  localField: "job",
+  foreignField: "job",
+  as: "ortak_meslekler"
+}},
+{$unwind:{path:"$ortak_meslekler"}},
+{$project:{_id:0, name:1,job:1,
+            nameStaff:"$ortak_meslekler.name",
+            avg_age:{$avg:["$age","$ortak_meslekler.age"]}
+          }})
